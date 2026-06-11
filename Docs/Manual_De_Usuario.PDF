@@ -1,0 +1,78 @@
+# 3.2 Manual de Usuario
+
+El chatbot de Registro y Aprobación de Horas Trabajadas permite a los empleados registrar su jornada laboral de forma guiada, validando la información ingresada y simulando el proceso de aprobación por parte del supervisor y del área de Recursos Humanos.
+
+## Inicio del sistema
+
+1. Ejecutar la aplicación.
+2. Se mostrará una ventana con el chat principal y un panel informativo.
+3. El chatbot solicitará el nombre del empleado para iniciar el proceso.
+
+## Proceso de registro
+
+### Paso 1: Identificación del empleado
+
+El usuario debe ingresar su nombre completo. El sistema verificará que el empleado exista en la base de datos.
+
+### Paso 2: Validación de identidad
+
+Una vez validado el empleado, el sistema solicitará el CUIL con formato:
+
+**XX-XXXXXXXX-X**
+
+### Paso 3: Ingreso de fecha
+
+El usuario deberá ingresar la fecha correspondiente al registro de horas utilizando el formato:
+
+**DD/MM/AAAA**
+
+### Paso 4: Verificación de registros existentes
+
+El sistema verificará si ya existe un registro para el empleado en la fecha indicada. En caso de existir, ofrecerá la posibilidad de rectificar la información previamente registrada.
+
+### Paso 5: Registro horario
+
+El usuario deberá ingresar:
+
+* Hora de ingreso (HH:MM)
+* Hora de salida (HH:MM)
+
+El sistema calculará automáticamente las horas trabajadas y las horas extra correspondientes según la modalidad laboral del empleado.
+
+### Paso 6: Confirmación
+
+El chatbot mostrará un resumen completo de la información registrada y solicitará la confirmación del usuario.
+
+### Paso 7: Aprobación del supervisor
+
+Una vez confirmado el registro, se simula la aprobación o rechazo por parte del supervisor responsable.
+
+### Paso 8: Recursos Humanos
+
+Si la solicitud es aprobada por el supervisor, el registro es enviado al área de Recursos Humanos para su aprobación final y almacenamiento en la base de datos SQLite.
+
+## Funciones adicionales
+
+### Visualización de registros
+
+Mediante el botón **"Ver registros"** es posible consultar los últimos registros almacenados en la base de datos.
+
+### Cancelación del proceso
+
+En cualquier momento el usuario puede cancelar el proceso utilizando el botón **"Cancelar proceso"** o ingresando el comando correspondiente.
+
+## Validaciones implementadas
+
+El sistema incorpora controles para evitar errores de ingreso:
+
+* Verificación de existencia del empleado.
+* Validación del formato de CUIL.
+* Validación del formato de fecha.
+* Validación del formato de horario.
+* Verificación de registros duplicados.
+* Control de cantidad máxima de intentos.
+* Cálculo automático de horas trabajadas y horas extra.
+
+## Mensajes de error
+
+Ante datos inválidos, el chatbot informa el error detectado y solicita nuevamente la información requerida. Si se supera el número máximo de intentos permitidos, el proceso se cancela automáticamente.

@@ -1,3 +1,13 @@
+# ==========================================================
+# IMPORTACIONES CLAVE
+# ----------------------------------------------------------
+# Se utiliza datetime para el tratamiento de formatos de fecha
+# y hora, re/unicodedata para normalizar entradas de texto,
+# y rapidfuzz para interpretar respuestas del usuario con
+# tolerancia a errores tipográficos. Esta combinación permite
+# mantener la lógica de negocio estable ante variaciones en
+# la interacción conversacional.
+# ==========================================================
 from datetime import datetime
 import re
 import unicodedata
@@ -24,11 +34,27 @@ from estados import (
 )
 
 
+# ==========================================================
+# CONSTANTES DE VALIDACIÓN Y CONTROL DE FLUJO
+# ----------------------------------------------------------
+# MAX_INTENTOS define el umbral de reintentos para cada paso
+# de la máquina de estados. Los patrones regulares determinan
+# formatos válidos para CUIL y hora, garantizando consistencia
+# en el registro de datos y evitando errores de procesamiento.
+# ==========================================================
 MAX_INTENTOS = 3
 FORMATO_CUIL = re.compile(r"^\d{2}-\d{8}-\d$")
 FORMATO_HORA = re.compile(r"^\d{2}:\d{2}$")
 
 
+# ==========================================================
+# FUNCIONES AUXILIARES DE INTERPRETACIÓN Y VALIDACIÓN
+# ----------------------------------------------------------
+# Estas funciones apoyan la lógica del chatbot fuera de la
+# máquina de estados principal. Permiten normalizar el texto,
+# interpretar confirmaciones, detectar cancelaciones y validar
+# fechas/horas antes de avanzar en el proceso de BPMN.
+# ==========================================================
 def normalizar_texto(texto):
     texto_limpio = texto.strip().lower()
     texto_limpio = unicodedata.normalize("NFD", texto_limpio)
@@ -93,6 +119,14 @@ def jornada_por_modalidad(modalidad):
     return 8
 
 
+# ==========================================================
+# CLASE PRINCIPAL: CHATBOT DE REGISTRO DE HORAS
+# ----------------------------------------------------------
+# Representa la máquina de estados que guía al usuario por el
+# proceso de registro de horas. Cada estado corresponde a un
+# paso del diagrama BPMN: validación de empleado, ingreso de
+# datos, verificación de duplicados, confirmación y aprobación.
+# ==========================================================
 class ChatbotRegistroHoras:
     def __init__(self):
         database.inicializar_base()
@@ -124,6 +158,13 @@ class ChatbotRegistroHoras:
             self._persistir_sesion()
 
     def iniciar(self):
+        # ==========================================================
+        # INICIO DEL PROCESO BPMN
+        # ----------------------------------------------------------
+        # Al arrancar o terminar un ciclo, el chatbot evalúa si debe
+        # reiniciar el proceso completo. Este método conecta la fase
+        # inicial del BPMN con la siguiente tarea: ingreso de nombre.
+        # ==========================================================
         if self.estado in [ESTADO_FINAL, ESTADO_CANCELADO]:
             self._reiniciar_proceso()
 
@@ -168,6 +209,13 @@ class ChatbotRegistroHoras:
             self._reiniciar_proceso()
             return self.iniciar()
 
+        # ==========================================================
+        # GATEWAY DE RECUPERACIÓN
+        # ----------------------------------------------------------
+        # Si el estado no corresponde a ninguno de los definidos,
+        # se retorna al inicio para evitar que el flujo quede en un
+        # estado no válido. Esto protege la consistencia de la sesión.
+        # ==========================================================
         self.estado = ESTADO_INICIO
         self._persistir_sesion()
         return self.iniciar()
@@ -197,6 +245,14 @@ class ChatbotRegistroHoras:
         return self.empleado["supervisor"]
 
     def _procesar_nombre(self, nombre):
+        # ==========================================================
+        # GATEWAY BPMN: VALIDACIÓN DE EMPLEADO
+        # ----------------------------------------------------------
+        # Verifica si el nombre del empleado existe en la tabla de
+        # empleados. Si el empleado es válido, el flujo continúa al
+        # estado de validación de CUIL; de lo contrario, se solicita
+        # reingresar el nombre.
+        # ==========================================================       
         empleado = database.buscar_empleado_por_nombre(nombre)
         if empleado:
             self.empleado = empleado
@@ -215,6 +271,14 @@ class ChatbotRegistroHoras:
         )
 
     def _procesar_cuil(self, cuil):
+        # ==========================================================
+        # GATEWAY BPMN: VALIDACIÓN DE CUIL
+        # ----------------------------------------------------------
+        # Comprueba que el formato del CUIL sea correcto y que
+        # corresponda al empleado previamente validado. Esta etapa
+        # garantiza la identidad del usuario antes de continuar con
+        # el registro de horas trabajadas.
+        # ==========================================================
         if not FORMATO_CUIL.match(cuil):
             return self._fallar_o_reintentar(
                 ESTADO_CUIL,
@@ -235,6 +299,14 @@ class ChatbotRegistroHoras:
         )
 
     def _procesar_fecha(self, texto):
+        # ==========================================================
+        # VALIDACIÓN DE FECHA DEL REGISTRO
+        # ----------------------------------------------------------
+        # Verifica que la fecha ingresada respete el formato
+        # DD/MM/AAAA. Una vez validada, el flujo avanza hacia la
+        # comprobación de registros existentes para evitar
+        # duplicidades en la base de datos.
+        # ==========================================================
         fecha = validar_fecha(texto)
         if not fecha:
             return self._fallar_o_reintentar(
@@ -250,6 +322,13 @@ class ChatbotRegistroHoras:
         return self._verificar_registro_existente()
 
     def _verificar_registro_existente(self):
+        # ==========================================================
+        # GATEWAY BPMN: VERIFICACIÓN DE DUPLICIDAD
+        # ----------------------------------------------------------
+        # Comprueba si ya existe un registro para el empleado en la
+        # fecha seleccionada. Si hay un duplicado, el proceso ofrece
+        # rectificación; si no, avanza al ingreso de horas.
+        # ==========================================================
         existente = database.obtener_registro_por_fecha(self.empleado["id"], self.fecha)
         if existente:
             self.estado = ESTADO_RECTIFICAR
@@ -264,6 +343,15 @@ class ChatbotRegistroHoras:
         return ["No se encontraron registros previos para este empleado en la fecha seleccionada.", "Ingrese hora de ingreso (HH:MM):"]
 
     def _procesar_rectificacion(self, respuesta):
+        # ==========================================================
+        # GATEWAY BPMN: DECISIÓN DE RECTIFICACIÓN
+        # ----------------------------------------------------------
+        # Si el usuario decide rectificar un registro existente, el
+        # flujo regresa al ingreso de horas con una bandera que
+        # habilita la actualización en la base de datos.
+        # En caso negativo, se finaliza el proceso para evitar
+        # duplicar registros.
+        # ==========================================================
         decision = interpretar_respuesta(respuesta)
         if decision == "SI":
             self.rectificar = True
@@ -322,6 +410,14 @@ class ChatbotRegistroHoras:
         return self._calcular_y_resumir()
 
     def _calcular_y_resumir(self):
+        # ==========================================================
+        # CÁLCULO DE HORAS Y RESUMEN
+        # ----------------------------------------------------------
+        # Calcula las horas trabajadas y las horas extras en función
+        # de la modalidad de empleo. Esta etapa corresponde a una
+        # tarea de negocio donde la regla de cálculo se aplica antes
+        # de solicitar confirmación.
+        # ==========================================================
         jornada = jornada_por_modalidad(self.empleado["modalidad"])
         self.horas_extra = round(max(0, self.horas_trabajadas - jornada), 2)
         self.estado = ESTADO_CONFIRMACION
@@ -338,6 +434,13 @@ class ChatbotRegistroHoras:
         ]
 
     def _procesar_confirmacion(self, respuesta):
+        # ==========================================================
+        # GATEWAY BPMN: DECISIÓN DEL USUARIO SOBRE EL RESUMEN
+        # ----------------------------------------------------------
+        # El chatbot presenta un resumen de los datos ingresados y
+        # pide confirmación. Esta decisión determina si el registro
+        # avanza hacia la autorización o si requiere una corrección.
+        # ==========================================================
         decision = interpretar_respuesta(respuesta)
         if decision == "SI":
             self._reiniciar_intentos(ESTADO_CONFIRMACION)
@@ -360,6 +463,13 @@ class ChatbotRegistroHoras:
         )
 
     def _procesar_supervisor(self, respuesta):
+        # ==========================================================
+        # GATEWAY BPMN: APROBACIÓN DEL SUPERVISOR
+        # ----------------------------------------------------------
+        # Representa la revisión de un supervisor. Una aprobación
+        # mueve el registro al área de Recursos Humanos; un rechazo
+        # guarda el estado RECHAZADO y cierra el ciclo.
+        # ==========================================================
         decision = interpretar_respuesta(respuesta)
         if decision == "SI":
             self._reiniciar_intentos(ESTADO_AUTORIZACION_SUPERVISOR)
@@ -380,6 +490,13 @@ class ChatbotRegistroHoras:
         )
 
     def _procesar_rrhh(self):
+        # ==========================================================
+        # TAREA DE RRHH Y PERSISTENCIA FINAL
+        # ----------------------------------------------------------
+        # En esta instancia se materializa la persistencia del
+        # registro final en SQLite. Se asume que Recursos Humanos
+        # aprueba el registro y se cierra el ciclo de negocio.
+        # ==========================================================
         self._guardar_registro("APROBADO")
         mensajes = [
             "Registro enviado a Recursos Humanos.",
@@ -392,6 +509,14 @@ class ChatbotRegistroHoras:
         return mensajes
 
     def _guardar_registro(self, estado):
+        # ==========================================================
+        # PERSISTENCIA DE REGISTRO EN BASE DE DATOS
+        # ----------------------------------------------------------
+        # Centraliza la escritura del registro en SQLite, manteniendo
+        # la separación entre la lógica de negocio del chatbot y el
+        # acceso a datos. El flag rectificar permite actualizar una
+        # entrada existente cuando corresponde.
+        # ==========================================================
         database.guardar_registro(
             self.empleado["id"],
             self.fecha,
@@ -423,6 +548,14 @@ class ChatbotRegistroHoras:
         return []
 
     def _fallar_o_reintentar(self, estado_intento, error, siguiente_mensaje):
+        # ==========================================================
+        # CONTROL DE ERRORES Y REINTENTOS
+        # ----------------------------------------------------------
+        # Gestiona los intentos permitidos para cada estado de la
+        # conversación. Cuando el usuario supera el límite definido,
+        # el proceso se cancela automáticamente para evitar ciclos
+        # infinitos y mantener la robustez del sistema.
+        # ==========================================================
         self.intentos[estado_intento] += 1
         if self.intentos[estado_intento] >= MAX_INTENTOS:
             self.estado = ESTADO_CANCELADO
@@ -441,10 +574,26 @@ class ChatbotRegistroHoras:
         self.intentos[estado_intento] = 0
 
     def _persistir_sesion(self):
+        # ==========================================================
+        # PERSISTENCIA DEL ESTADO DE LA CONVERSACIÓN
+        # ----------------------------------------------------------
+        # Guarda el usuario actual y el estado de la máquina de
+        # estados en SQLite. Esto permite recuperar la sesión ante
+        # cierres inesperados y continuar el proceso desde el punto
+        # donde fue interrumpido.
+        # ==========================================================
         usuario = self.empleado["nombre"] if self.empleado else None
         database.guardar_sesion(usuario, self.estado)
 
     def _reiniciar_proceso(self):
+        # ==========================================================
+        # REINICIO COMPLETO DEL PROCESO
+        # ----------------------------------------------------------
+        # Restablece todas las variables de trabajo, elimina la
+        # sesión almacenada y devuelve la máquina de estados al
+        # punto inicial. Se ejecuta cuando el proceso finaliza o es
+        # cancelado por el usuario.
+        # ==========================================================
         database.limpiar_sesion()
         self.estado = ESTADO_INICIO
         self.empleado = None
@@ -459,6 +608,14 @@ class ChatbotRegistroHoras:
 
 
 def main():
+    # ==========================================================
+    # PUNTO DE ENTRADA DE LA APLICACIÓN
+    # ----------------------------------------------------------
+    # Inicia la interfaz gráfica del chatbot. Desde este punto
+    # comienza la interacción con el usuario y se conecta la
+    # interfaz con la lógica de negocio implementada en la
+    # máquina de estados.
+    # ==========================================================
     from interfaz import iniciar_interfaz
 
     iniciar_interfaz()

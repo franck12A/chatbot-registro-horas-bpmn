@@ -3,9 +3,24 @@ from pathlib import Path
 from contextlib import contextmanager
 
 
+# ==========================================================
+# PERSISTENCIA SQLITE
+# ----------------------------------------------------------
+# SQLite se utiliza para brindar persistencia ligera, local y
+# transaccional del proceso de registro. Es adecuado para un TP
+# integrador académico porque no requiere servidor externo y
+# facilita el trazado del flujo de conversaciones.
+# ==========================================================
 DB_PATH = Path("empresa.db")
 
-
+# ==========================================================
+# DATOS INICIALES DE PRUEBA
+# ----------------------------------------------------------
+# Conjunto de empleados precargados utilizado para simular
+# una base organizacional real. Estos registros permiten
+# validar el flujo BPMN sin necesidad de carga manual de
+# información durante las pruebas del sistema.
+# ==========================================================
 EMPLEADOS_INICIALES = [
     ("Martin Gonzalez", "20-12345678-3", "Tiempo Completo", "Ana Perez"),
     ("Lucia Fernandez", "27-23456789-4", "Tiempo Parcial", "Carlos Ruiz"),
@@ -21,6 +36,14 @@ EMPLEADOS_INICIALES = [
 
 @contextmanager
 def conectar():
+    # ==========================================================
+    # CONTEXTO DE CONEXIÓN
+    # ----------------------------------------------------------
+    # Provee un manejador de conexión que asegura commit/rollback
+    # y el cierre adecuado de recursos. El uso de sqlite3.Row
+    # facilita el acceso por nombre de columna en la lógica de
+    # negocio del chatbot.
+    # ==========================================================
     conexion = sqlite3.connect(DB_PATH)
     conexion.row_factory = sqlite3.Row
     try:
@@ -35,6 +58,14 @@ def conectar():
 
 def inicializar_base():
     with conectar() as conexion:
+        # ==========================================================
+        # ESCHEMA DE PERSISTENCIA
+        # ----------------------------------------------------------
+        # Define las tablas necesarias para empleados, registros y
+        # sesiones. Este esquema refleja los elementos persistentes
+        # del proceso BPMN: identidad del empleado, datos de tiempo
+        # y estado de la conversación.
+        # ==========================================================
         conexion.execute(
             """
             CREATE TABLE IF NOT EXISTS empleados (
@@ -74,6 +105,14 @@ def inicializar_base():
 
 
 def _sembrar_empleados(conexion):
+    # ==========================================================
+    # CARGA INICIAL DE EMPLEADOS
+    # ----------------------------------------------------------
+    # Inserta automáticamente los empleados de prueba cuando
+    # la base de datos se crea por primera vez. Esta técnica
+    # (seeding) asegura que el sistema disponga de datos válidos
+    # para ejecutar las validaciones del proceso.
+    # ==========================================================
     total = conexion.execute("SELECT COUNT(*) FROM empleados").fetchone()[0]
     if total > 0:
         return
@@ -88,6 +127,13 @@ def _sembrar_empleados(conexion):
 
 
 def buscar_empleado_por_nombre(nombre):
+    # ==========================================================
+    # CONSULTA SQLITE: BÚSQUEDA DE EMPLEADO
+    # ----------------------------------------------------------
+    # Localiza al empleado por nombre, soportando comparación
+    # case-insensitive. Esta función es parte del gateway de
+    # validación inicial del proceso de registro.
+    # ==========================================================
     with conectar() as conexion:
         return conexion.execute(
             """
@@ -100,6 +146,13 @@ def buscar_empleado_por_nombre(nombre):
 
 
 def buscar_empleado_por_id(empleado_id):
+    # ==========================================================
+    # CONSULTA SQLITE: BÚSQUEDA POR IDENTIFICADOR
+    # ----------------------------------------------------------
+    # Recupera un empleado mediante su clave primaria. Aunque
+    # no forma parte del flujo principal, permite futuras
+    # extensiones y mantiene encapsulado el acceso a datos.
+    # ==========================================================
     with conectar() as conexion:
         return conexion.execute(
             """
@@ -112,6 +165,13 @@ def buscar_empleado_por_id(empleado_id):
 
 
 def obtener_registro_por_fecha(empleado_id, fecha):
+    # ==========================================================
+    # CONSULTA SQLITE: VERIFICACIÓN DE REGISTRO EXISTENTE
+    # ----------------------------------------------------------
+    # Recupera el último registro para un empleado en una fecha
+    # determinada. Esto permite detectar duplicados y habilitar
+    # la ruta de rectificación en el flujo.
+    # ==========================================================
     with conectar() as conexion:
         return conexion.execute(
             """
@@ -136,6 +196,14 @@ def guardar_registro(
     estado,
     rectificar=False,
 ):
+    # ==========================================================
+    # CONSULTA SQLITE: GUARDADO Y RECTIFICACIÓN DE REGISTRO
+    # ----------------------------------------------------------
+    # Inserta un nuevo registro de horas o actualiza uno existente
+    # si se trata de una rectificación. Esta decisión preserva la
+    # historia de la sesión y evita duplicados mientras se mantiene
+    # la trazabilidad académica.
+    # ==========================================================
     with conectar() as conexion:
         existente = obtener_registro_por_fecha(empleado_id, fecha)
         if rectificar and existente:
@@ -182,6 +250,13 @@ def guardar_registro(
 
 
 def listar_registros(limite=20):
+    # ==========================================================
+    # CONSULTA SQLITE: LISTADO DE REGISTROS
+    # ----------------------------------------------------------
+    # Recupera los registros almacenados junto con los datos del
+    # empleado asociado mediante una operación JOIN. Esta función
+    # alimenta el panel de consulta disponible en la interfaz.
+    # ==========================================================
     with conectar() as conexion:
         return conexion.execute(
             """
@@ -198,6 +273,13 @@ def listar_registros(limite=20):
 
 
 def guardar_sesion(usuario, estado_actual):
+    # ==========================================================
+    # GUARDADO DE SESIÓN
+    # ----------------------------------------------------------
+    # Persiste el usuario y el estado actual de la conversación
+    # para permitir recuperación de sesión y continuidad del
+    # flujo en la máquina de estados entre ejecuciones.
+    # ==========================================================
     with conectar() as conexion:
         conexion.execute(
             """
@@ -212,6 +294,13 @@ def guardar_sesion(usuario, estado_actual):
 
 
 def obtener_sesion():
+    # ==========================================================
+    # RECUPERACIÓN DE SESIÓN
+    # ----------------------------------------------------------
+    # Obtiene el estado persistido de la conversación para que
+    # la máquina de estados pueda continuar el proceso desde el
+    # último punto registrado.
+    # ==========================================================
     with conectar() as conexion:
         return conexion.execute(
             "SELECT usuario, estado_actual FROM sesiones WHERE id = 1"
@@ -219,8 +308,21 @@ def obtener_sesion():
 
 
 def limpiar_sesion():
+    # ==========================================================
+    # REINICIO DE SESIÓN
+    # ----------------------------------------------------------
+    # Restablece la información de sesión almacenada en SQLite,
+    # devolviendo el flujo al estado inicial del chatbot.
+    # ==========================================================
     guardar_sesion(None, "inicio")
 
 def limpiar_registros():
+    # ==========================================================
+    # ELIMINACIÓN DE REGISTROS
+    # ----------------------------------------------------------
+    # Borra todos los registros de horas almacenados en la base
+    # de datos. Esta operación se utiliza principalmente para
+    # pruebas y reinicio de escenarios durante la ejecución.
+    # ==========================================================
     with conectar() as conexion:
         conexion.execute("DELETE FROM registros")

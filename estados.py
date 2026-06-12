@@ -1,3 +1,14 @@
+# ==========================================================
+# DEFINICIÓN DE ESTADOS DE LA MÁQUINA DE ESTADOS
+# ----------------------------------------------------------
+# Este módulo centraliza todos los estados utilizados por el
+# chatbot durante la ejecución del proceso BPMN de registro
+# y aprobación de horas trabajadas.
+#
+# Mantener los estados en un archivo independiente mejora la
+# mantenibilidad, evita errores por cadenas duplicadas y
+# facilita la validación del flujo de negocio.
+# ==========================================================
 ESTADO_INICIO = "inicio"
 ESTADO_NOMBRE = "nombre"
 ESTADO_CUIL = "cuil"
@@ -13,7 +24,14 @@ ESTADO_RRHH = "rrhh"
 ESTADO_FINAL = "final"
 ESTADO_CANCELADO = "cancelado"
 
-
+# ==========================================================
+# CONJUNTO DE ESTADOS VÁLIDOS
+# ----------------------------------------------------------
+# Se utiliza para verificar que el estado recuperado desde
+# la sesión almacenada en SQLite pertenezca a la máquina de
+# estados definida. Esto evita inconsistencias y protege la
+# continuidad del proceso ante errores o modificaciones.
+# ==========================================================
 ESTADOS_VALIDOS = {
     ESTADO_INICIO,
     ESTADO_NOMBRE,

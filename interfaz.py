@@ -3,12 +3,32 @@ import customtkinter
 import database
 from main import ChatbotRegistroHoras
 
-
+# ==========================================================
+# CONFIGURACIÓN VISUAL DE LA INTERFAZ
+# ----------------------------------------------------------
+# Se establece el modo oscuro y el tema visual de la
+# aplicación para ofrecer una interfaz moderna y consistente.
+# ==========================================================
 customtkinter.set_appearance_mode("dark")
 customtkinter.set_default_color_theme("blue")
 
 
+# ==========================================================
+# CLASE PRINCIPAL DE INTERFAZ GRÁFICA
+# ----------------------------------------------------------
+# Implementa la interfaz visual del chatbot utilizando
+# CustomTkinter. Su responsabilidad es gestionar la
+# interacción con el usuario y comunicar la capa visual
+# con la lógica de negocio definida en ChatbotRegistroHoras.
+# ==========================================================
 class InterfazChatbot(customtkinter.CTk):
+    # ==========================================================
+    # INICIALIZACIÓN DE LA VENTANA PRINCIPAL
+    # ----------------------------------------------------------
+    # Configura la estructura general de la aplicación,
+    # crea los componentes gráficos e inicia la conversación
+    # con el chatbot.
+    # ==========================================================
     def __init__(self):
         super().__init__()
         self.chatbot = ChatbotRegistroHoras()
@@ -37,6 +57,13 @@ class InterfazChatbot(customtkinter.CTk):
         self.geometry(f"{ancho}x{alto}+{posicion_x}+{posicion_y}")
 
     def _crear_columna_chat(self):
+        # ==========================================================
+        # PANEL DE CONVERSACIÓN
+        # ----------------------------------------------------------
+        # Construye la sección principal donde se muestran los
+        # mensajes intercambiados entre el usuario y el chatbot,
+        # además del área de ingreso de texto.
+        # ==========================================================
         self.frame_chat = customtkinter.CTkFrame(self, corner_radius=10)
         self.frame_chat.grid(row=0, column=0, padx=(20, 10), pady=20, sticky="nsew")
         self.frame_chat.grid_columnconfigure(0, weight=1)
@@ -84,6 +111,13 @@ class InterfazChatbot(customtkinter.CTk):
         self.boton_enviar.grid(row=0, column=1, sticky="e")
 
     def _crear_panel_informativo(self):
+        # ==========================================================
+        # PANEL DE MONITOREO DEL PROCESO
+        # ----------------------------------------------------------
+        # Muestra información relevante sobre la ejecución del
+        # proceso BPMN, incluyendo usuario activo, estado actual,
+        # modalidad laboral y supervisor asignado.
+        # ==========================================================
         self.panel_info = customtkinter.CTkFrame(self, corner_radius=10)
         self.panel_info.grid(row=0, column=1, padx=(10, 20), pady=20, sticky="nsew")
         self.panel_info.grid_columnconfigure(0, weight=1)
@@ -195,6 +229,13 @@ class InterfazChatbot(customtkinter.CTk):
         self.estado_valor.configure(text=estado)
 
     def enviar_mensaje(self, event=None):
+        # ==========================================================
+        # GESTIÓN DE MENSAJES DEL USUARIO
+        # ----------------------------------------------------------
+        # Captura el texto ingresado, lo envía al chatbot para
+        # su procesamiento y muestra las respuestas generadas.
+        # También actualiza el panel informativo.
+        # ==========================================================
         texto = self.entrada_texto.get().strip()
         if not texto:
             return
@@ -209,6 +250,12 @@ class InterfazChatbot(customtkinter.CTk):
         self._actualizar_panel_desde_chatbot()
 
     def mostrar_registros(self):
+        # ==========================================================
+        # CONSULTA DE REGISTROS ALMACENADOS
+        # ----------------------------------------------------------
+        # Recupera los registros persistidos en SQLite y los
+        # muestra dentro del área de conversación para consulta.
+        # ==========================================================
         registros = database.listar_registros()
         if not registros:
             self.agregar_mensaje("Bot", "No hay registros cargados en SQLite.")
@@ -226,6 +273,12 @@ class InterfazChatbot(customtkinter.CTk):
                 ),
             )
     def limpiar_registros(self):
+        # ==========================================================
+        # ELIMINACIÓN DE REGISTROS
+        # ----------------------------------------------------------
+        # Borra todos los registros almacenados en la base de
+        # datos SQLite con fines de prueba o reinicio del sistema.
+        # ==========================================================
         database.limpiar_registros()
         self.agregar_mensaje(
             "Bot",
@@ -233,12 +286,24 @@ class InterfazChatbot(customtkinter.CTk):
         )
 
     def cancelar_proceso(self):
+        # ==========================================================
+        # CANCELACIÓN DEL PROCESO ACTUAL
+        # ----------------------------------------------------------
+        # Permite interrumpir el flujo de negocio en cualquier
+        # momento y reiniciar la máquina de estados.
+        # ==========================================================
         for mensaje in self.chatbot.cancelar_proceso():
             self.agregar_mensaje("Bot", mensaje)
         self._actualizar_panel_desde_chatbot()
     
 
     def _actualizar_panel_desde_chatbot(self):
+        # ==========================================================
+        # SINCRONIZACIÓN DE DATOS CON LA INTERFAZ
+        # ----------------------------------------------------------
+        # Actualiza los elementos visuales utilizando la
+        # información actual de la máquina de estados.
+        # ==========================================================
         self.actualizar_estado(
             self.chatbot.obtener_usuario_actual(),
             self.chatbot.obtener_estado_actual(),
@@ -248,6 +313,12 @@ class InterfazChatbot(customtkinter.CTk):
 
 
 def iniciar_interfaz():
+    # ==========================================================
+    # PUNTO DE ENTRADA DE LA INTERFAZ GRÁFICA
+    # ----------------------------------------------------------
+    # Crea la ventana principal y pone en ejecución el
+    # ciclo de eventos de CustomTkinter.
+    # ==========================================================
     app = InterfazChatbot()
     app.mainloop()
 
